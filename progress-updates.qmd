@@ -1,0 +1,145 @@
+---
+title: "Initial Climate Data Plots"
+author: "J. Dimitrova"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+format:
+  html:
+    toc: true           
+    toc-depth: 3        
+    number-sections: true
+    code-fold: true     
+editor: visual
+---
+
+```{r}
+#| label: load-packages
+#| include: false
+
+library(tidyverse)
+library(duckplyr)
+library(ggplot2)
+library(lubridate)
+```
+
+## File/Data overview
+
+Files and data from OSF, see \[<https://osf.io/npfa9/files/osfstorage>\].
+
+Here I should describe the data, list columns, types, number of rows, source info, data range etc.
+
+| Filename | Rows | Columns | Sites (count) | Variables (count) | Notes |
+|------------|------------|------------|------------|------------|------------|
+| VCG_clean_gridded_daily_climate_2008-2022.csv | 305,515 | 4 (date, siteID, variable, value) | 12\* | precipitation, temperature, cloud_cover, rel_air_moisture, wind (5) | Spans 2008–2022 |
+| VCG_clean_soil_chemistry_2009_2010_2013_2015.csv | 1502 | 7 (year, siteID_dest, blockID_dest, originPlotID, destinationPlotID, turfID, TTtreat, variable, value, unit) | 12 | CN_ratio, loi, pH, NO3N, NH4N, C_content, available_N, soil_depth, N_content (9) | Values from 2009, 2010, 2013 and 2015 |
+
+-- **Sites (12):**\
+Alrust, Lavisdalen, Veskre, Hogsete, Vikesland, Rambera, Skjelingahaugen, Ulvehaugen, Fauske, Ovstedalen, Arhelleren, Gudmedalen.
+
+## Some exploratory data analysis
+
+Here I should put some summary stat maybe (mean, median, counts), distributions and key insights, as well as the basic plots I produce when getting exploring the data (timeseries, boxplots, histograms etc). 
+
+The next few plots (timeseries, facets, average yearly temp and a heatmap) are made using the gridded data. Not a fan of the heatmap at all actually - do we need heatmaps in general??? Also, in the branch there's a few more plots of the relative air moisture, wind speed, precipitation and clouds at each site over time (2008-2022).
+
+```{r}
+#| label: temperature
+#| warning: false
+#| echo: false
+
+data <- duckplyr_df_from_csv("C:/Users/joana/VSC_Project/8_Environmental_data/VCG_clean_gridded_daily_climate_2008-2022.csv")
+
+data |>
+  filter(siteID == "Alrust", variable == "temperature") |>
+  collect() |>
+  ggplot(aes(x = date, y = value)) +
+  geom_line(color = "steelblue") +
+  labs(title = "Temperature over Time at Alrust",
+       x = "Date",
+       y = "Temperature (°C)") +
+  theme_minimal() +
+  theme(aspect.ratio = 0.5)  # wider plot
+```
+
+```{r}
+#| label: facets
+#| warning: false
+#| echo: false
+data |>
+  filter(siteID == "Alrust") |>
+  collect() |>
+  ggplot(aes(x = date, y = value)) +
+  geom_line(color = "steelblue") +
+  facet_wrap(~ variable, scales = "free_y", ncol = 1) +
+  labs(title = "Climate Variables over Time at Alrust",
+       x = "Date",
+       y = "Value")
+```
+
+```{r}
+#| label: yearly_average
+#| warning: false
+#| echo: false
+data |>
+  filter(siteID == "Alrust", variable == "temperature") |>
+  collect() |>
+  mutate(year = year(date)) |>
+  group_by(year) |>
+  summarise(mean_value = mean(value, na.rm = TRUE)) |>
+  ggplot(aes(x = year, y = mean_value)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Average Yearly Temperature at Alrust",
+       x = "Year",
+       y = "Mean Temperature (°C)")
+```
+
+```{r}
+#| label: heatmap
+#| warning: false
+#| echo: false
+
+df_heatmap <- data |>
+  filter(variable == "precipitation") |>
+  collect() |>
+  mutate(
+    date = as.Date(date),
+    year_month = floor_date(date, "month")  # group by month for cleaner heatmap
+  )
+
+heatmap_data <- df_heatmap |>
+  group_by(siteID, year_month) |>
+  summarise(
+    mean_precip = mean(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(heatmap_data, aes(x = year_month, y = reorder(siteID, desc(siteID)), fill = mean_precip)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Precip (mm)", option = "B") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    title = "Monthly Average Precipitation by Site",
+    x = "Date",
+    y = "Site ID"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  )
+
+```
+
+Also, here's plots of the variables for all 12 sites for comparison purposes. A bit messy but this works for initially exploring how the temperature, relative air moisture, cloud cover and wind speed vary across the years and across the different sites.
+
+## More serious plots? Recreated plots?
+
+A section for the more detailed or complex plots, trends over time and data comparisons. It would be good if I can annotate some with short observations/interpretations/what stands out.
+
+## Methods ft Notes on analysis
+
+For the brief notes on data transformations, filtering, any modelling steps and code snippets or explanations ft reproducibility.
+
+## To-Do Still
+
+Push through the other two files and update/finish this doc for now.
